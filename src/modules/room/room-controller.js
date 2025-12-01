@@ -1,12 +1,13 @@
 const Room = require('../../models/room-model');
 const Resort = require('../../models/resort-model');
-const { getBookedDates } = require('../../utils/dateAvailability');
+const { isRoomAvailable,getBookedDates, calculateTotalPrice } = require('../../utils/dateAvailability');
+const { uploadImage, deleteImage, extractPublicId } = require('../../utils/cloudinary');
 
 // Create a room
 exports.createRoom = async (req, res) => {
 	try {
-		const { resort_id, room_type, capacity, price_per_night, status } = req.body;
-		
+		const { resort_id, room_type, capacity, price_per_night, status, description } = req.body;
+		const owner_id = req.user._id;
 		// Validate that resort exists and user owns it (if auth middleware provides user)
 		if (req.user) {
 			const resort = await Resort.findOne({ _id: resort_id, owner_id: req.user.id, deleted: false });
@@ -15,9 +16,23 @@ exports.createRoom = async (req, res) => {
 			}
 		}
 
-		const room = new Room({ resort_id, room_type, capacity, price_per_night, status });
-		await room.save();
+		let imageUrl = null;
 		
+		// Handle image upload if file is provided
+		if (req.file) {
+			try {
+				const uploadResult = await uploadImage(req.file.buffer, {
+					public_id: `room_${owner_id}_${Date.now()}`
+				});
+				imageUrl = uploadResult.secure_url;
+			} catch (uploadError) {
+				console.error('Image upload error:', uploadError);
+				return res.status(400).json({ message: 'Image upload failed. Please try again.' });
+			}
+		}
+
+		const room = new Room({ resort_id, room_type, capacity, price_per_night, status, description, image: imageUrl });
+		await room.save();
 		// Populate resort details in response
 		const populatedRoom = await Room.findById(room._id).populate('resort_id', 'resort_name location');
 		
@@ -72,6 +87,45 @@ exports.getRoomsByResort = async (req, res) => {
 		res.status(500).json({ message: 'Server error.' });
 	}
 };
+
+exports.getAvailableRooms = async (req, res) => {
+	try {
+		const { resortId, startDate,endDate } = req.params;
+		
+		// Check if resort exists
+		const resort = await Resort.findOne({ _id: resortId, deleted: false });
+		if (!resort) {
+			return res.status(404).json({ message: 'Resort not found.' });
+		}
+
+		const roomList = await Room.find({ resort_id: resortId, deleted: false })
+			.populate('resort_id', 'resort_name location image');
+
+
+		const results = await Promise.all(
+		roomList.map(async (room) => ({
+			room,
+			available: await isRoomAvailable(room.room_id, startDate, endDate),
+			total_price: calculateTotalPrice(room.price_per_night, startDate, endDate),
+			nights: Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24))
+		}))
+		);
+
+		const rooms = results
+		.filter(r => r.available)
+		.map(r => r.room);
+		
+		res.json({
+			resort,
+			rooms
+		});
+	} catch (err) {
+		console.error('Error getting rooms by resort:', err);
+		res.status(500).json({ message: 'Server error.' });
+	}
+};
+
+
 
 // Get room by ID with availability info
 exports.getRoomById = async (req, res) => {
@@ -144,7 +198,7 @@ exports.getRoomById = async (req, res) => {
 // Update room
 exports.updateRoom = async (req, res) => {
 	try {
-		const { room_type, capacity, price_per_night, status } = req.body;
+		const { room_type, capacity, price_per_night, status,description } = req.body;
 		
 		// Find room first to check ownership
 		const existingRoom = await Room.findOne({ _id: req.params.id, deleted: false })
@@ -159,16 +213,50 @@ exports.updateRoom = async (req, res) => {
 			return res.status(403).json({ message: 'Not authorized to update this room.' });
 		}
 
-		const room = await Room.findOneAndUpdate(
-			{ _id: req.params.id, deleted: false },
-			{ room_type, capacity, price_per_night, status },
+		let imageUrl = existingRoom.image; // Keep existing image by default
+		
+		// Handle new image upload if file is provided
+		if (req.file) {
+			try {
+				// Delete old image from Cloudinary if it exists
+				if (existingRoom.image) {
+					const oldPublicId = extractPublicId(existingRoom.image);
+					if (oldPublicId) {
+						await deleteImage(oldPublicId);
+					}
+				}
+				
+				// Upload new image
+				const uploadResult = await uploadImage(req.file.buffer, {
+					public_id: `room_${existingRoom.owner_id}_${Date.now()}`
+				});
+				imageUrl = uploadResult.secure_url;
+			} catch (uploadError) {
+				console.error('Image upload error:', uploadError);
+				return res.status(400).json({ message: 'Image upload failed. Please try again.' });
+			}
+		}
+
+			// Build update object with only provided fields
+		const updateData = {};
+		if (room_type) updateData.room_type = room_type;
+		if (capacity) updateData.capacity = capacity;
+		if (price_per_night) updateData.price_per_night = price_per_night;
+		if (status) updateData.status = status;
+		if (description !== undefined) updateData.description = description;
+		updateData.image = imageUrl;
+		
+		const room = await Room.findByIdAndUpdate(
+			req.params.id,
+			updateData,
 			{ new: true }
 		).populate('resort_id', 'resort_name location');
 		
 		res.json(room);
+	
 	} catch (err) {
 		console.error('Error updating room:', err);
-		res.status(500).json({ message: 'Server error.' });
+		res.status(500).json({ message: 'Server errors.' });
 	}
 };
 
