@@ -1,6 +1,6 @@
 const Room = require('../../models/room-model');
 const Resort = require('../../models/resort-model');
-const { isRoomAvailable,getBookedDates, calculateTotalPrice } = require('../../utils/dateAvailability');
+const { isRoomAvailable,getBookedDates } = require('../../utils/dateAvailability');
 const { uploadImage, deleteImage, extractPublicId } = require('../../utils/cloudinary');
 
 // Create a room
@@ -105,9 +105,7 @@ exports.getAvailableRooms = async (req, res) => {
 		const results = await Promise.all(
 		roomList.map(async (room) => ({
 			room,
-			available: await isRoomAvailable(room.room_id, startDate, endDate),
-			total_price: calculateTotalPrice(room.price_per_night, startDate, endDate),
-			nights: Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24))
+			available: await isRoomAvailable(room.room_id, startDate, endDate)
 		}))
 		);
 
