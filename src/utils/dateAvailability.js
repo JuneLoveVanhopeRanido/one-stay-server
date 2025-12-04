@@ -9,49 +9,37 @@ const Reservation = require('../models/reservation-model');
  * @returns {Promise<boolean>} - True if available, false if not
  */
 const isRoomAvailable = async (roomId, startDate, endDate, excludeReservationId = null) => {
-	try {
-		// Build query to find conflicting reservations
-		const query = {
-			room_id: roomId,
-			deleted: false,
-			status: 'approved', // Only consider approved reservations
-			$or: [
-				// New reservation starts during existing reservation
-				{
-					start_date: { $lte: startDate },
-					end_date: { $gt: startDate }
-				},
-				// New reservation ends during existing reservation
-				{
-					start_date: { $lt: endDate },
-					end_date: { $gte: endDate }
-				},
-				// New reservation completely contains existing reservation
-				{
-					start_date: { $gte: startDate },
-					end_date: { $lte: endDate }
-				},
-				// Existing reservation completely contains new reservation
-				{
-					start_date: { $lte: startDate },
-					end_date: { $gte: endDate }
-				}
-			]
-		};
+  try {
+    // Build query to find conflicting reservations
+    const query = {
+      room_id: roomId,
+      deleted: false,
+      status: { $in: ['approved', 'pending'] }, // Only consider approved or pending reservations
+      $or: [
+        // New reservation starts during existing reservation
+        { start_date: { $lte: startDate }, end_date: { $gt: startDate } },
+        // New reservation ends during existing reservation
+        { start_date: { $lt: endDate }, end_date: { $gte: endDate } },
+        // New reservation completely contains existing reservation
+        { start_date: { $gte: startDate }, end_date: { $lte: endDate } },
+        // Existing reservation completely contains new reservation
+        { start_date: { $lte: startDate }, end_date: { $gte: endDate } }
+      ]
+    };
 
-		// Exclude specific reservation if provided (for updates)
-		if (excludeReservationId) {
-			query._id = { $ne: excludeReservationId };
-		}
+    // Exclude specific reservation if provided (for updates)
+    if (excludeReservationId) {
+      query._id = { $ne: excludeReservationId };
+    }
 
-		const conflictingReservations = await Reservation.find(query);
-		
-		return conflictingReservations.length === 0;
-	} catch (error) {
-		console.error('Error checking room availability:', error);
-		throw error;
-	}
+    const conflictingReservations = await Reservation.find(query);
+    return conflictingReservations.length === 0;
+  } catch (error) {
+    console.error('Error checking room availability:', error);
+    throw error;
+  }
 };
+
 
 /**
  * Get all booked dates for a room

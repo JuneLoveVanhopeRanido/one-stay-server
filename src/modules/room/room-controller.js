@@ -91,39 +91,35 @@ exports.getRoomsByResort = async (req, res) => {
 };
 
 exports.getAvailableRooms = async (req, res) => {
-	try {
-		const { resortId, startDate,endDate } = req.params;
-		
-		// Check if resort exists
-		const resort = await Resort.findOne({ _id: resortId, deleted: false });
-		if (!resort) {
-			return res.status(404).json({ message: 'Resort not found.' });
-		}
+  try {
+    const { resortId, startDate, endDate } = req.params;
 
-		const roomList = await Room.find({ resort_id: resortId, deleted: false })
-			.populate('resort_id', 'resort_name location image');
+    if (!resortId || !startDate || !endDate) {
+      return res.status(400).json({ message: 'Missing parameters.' });
+    }
 
+    const resort = await Resort.findOne({ _id: resortId, deleted: false });
+    if (!resort) return res.status(404).json({ message: 'Resort not found.' });
 
-		const results = await Promise.all(
-		roomList.map(async (room) => ({
-			room,
-			available: await isRoomAvailable(room.room_id, startDate, endDate)
-		}))
-		);
+    const roomList = await Room.find({ resort_id: resortId, deleted: false })
+      .populate('resort_id', 'resort_name location image');
 
-		const rooms = results
-		.filter(r => r.available)
-		.map(r => r.room);
-		
-		res.json({
-			resort,
-			rooms
-		});
-	} catch (err) {
-		console.error('Error getting rooms by resort:', err);
-		res.status(500).json({ message: 'Server error.' });
-	}
+    const results = await Promise.all(
+      roomList.map(async (room) => ({
+        room,
+        available: await isRoomAvailable(room._id, startDate, endDate),
+      }))
+    );
+
+    const rooms = results.filter(r => r.available).map(r => r.room);
+
+    res.json({ resort, rooms });
+  } catch (err) {
+    console.error('Error getting rooms by resort:', err);
+    res.status(500).json({ message: 'Server error.', error: err.message });
+  }
 };
+
 
 
 

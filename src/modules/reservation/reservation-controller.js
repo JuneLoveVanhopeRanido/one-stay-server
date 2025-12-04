@@ -333,6 +333,7 @@ const getUserReservations = async (req, res) => {
 		const reservations = await Reservation.find(query)
 			.populate({
 				path: 'room_id',
+				select: '_id room_type capacity price_per_night room_number',
 				populate: {
 					path: 'resort_id',
 					select: 'resort_name location image'
@@ -513,6 +514,7 @@ const getOwnerReservations = async (req, res) => {
 					room_type: '$room_info.room_type',
 					capacity: '$room_info.capacity',
 					price_per_night: '$room_info.price_per_night',
+					room_number: '$room_info.room_number',
 					resort_id: {
 						_id: '$resort_info._id',
 						resort_name: '$resort_info.resort_name',
@@ -729,6 +731,7 @@ const getAllReservations = async (req, res) => {
 				populate: {
 					path: 'resort_id',
 					select: 'resort_name location'
+					
 				}
 			})
 			.sort({ createdAt: -1 });
