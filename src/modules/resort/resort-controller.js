@@ -148,15 +148,78 @@ exports.searchResorts = async (req, res) => {
 };
 
 // Get resort by ID
+// exports.getResortById = async (req, res) => {
+// 	try {
+// 		const resort = await Resort.findById(req.params.id);
+// 		if (!resort) return res.status(404).json({ message: 'Resort not found.' });
+// 		res.json(resort);
+// 	} catch (err) {
+// 		res.status(500).json({ message: 'Server error.' });
+// 	}
+// };
 exports.getResortById = async (req, res) => {
 	try {
-		const resort = await Resort.findById(req.params.id);
-		if (!resort) return res.status(404).json({ message: 'Resort not found.' });
-		res.json(resort);
+		const resort = await Resort.findOne({
+			_id: req.params.id,
+			deleted: false
+		}).lean(); // clean JS object
+
+		if (!resort) {
+			return res.status(404).json({ message: "Resort not found." });
+		}
+
+		// Get rooms owned by this resort
+		const rooms = await Room.find({ resort_id: resort._id, deleted: false })
+			.select("_id room_type room_number")
+			.lean();
+
+		const roomIds = rooms.map(r => r._id);
+
+		// Get all feedback for these rooms
+		const feedbacks = await Feedback.find({
+			room_id: { $in: roomIds },
+			deleted: false
+		})
+			.populate("from_user_id", "username")
+			.populate("to_user_id", "username")
+			.populate("room_id", "room_type room_number")
+			.lean();
+
+		// Transform into frontend-friendly format
+		const formattedFeedbacks = feedbacks.map(fb => ({
+			_id: fb._id,
+			rating: fb.rating,
+			comment: fb.comment,
+			createdAt: fb.createdAt,
+			from_user: {
+				_id: fb.from_user_id._id,
+				username: fb.from_user_id.username
+			},
+			to_user: {
+				_id: fb.to_user_id._id,
+				username: fb.to_user_id.username
+			},
+			room: {
+				_id: fb.room_id._id,
+				room_type: fb.room_id.room_type,
+				room_number: fb.room_id.room_number
+			}
+		}));
+
+		res.json({
+			...resort,
+			feedbacks: formattedFeedbacks
+		});
+
 	} catch (err) {
-		res.status(500).json({ message: 'Server error.' });
+		console.error("GET RESORT ERROR:", err);
+		res.status(500).json({ message: "Server error." });
 	}
 };
+
+
+
+
 
 // Get resort by owner ID
 exports.getResortByOwnerId = async (req, res) => {
