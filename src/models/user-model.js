@@ -7,7 +7,14 @@ const userSchema = new mongoose.Schema({
 	password: { type: String, required: true },
 	role: { type: String, enum: ['customer', 'owner'], required: true },
 	createdAt: { type: Date, default: Date.now },
-	deleted: { type: Boolean, default: false }
+	deleted: { type: Boolean, default: false },
+	favorites: [
+		{
+			type: mongoose.Schema.Types.ObjectId,
+			ref: "Resort",
+			default: []
+		}
+	],
 });
 
 module.exports = mongoose.model('User', userSchema);
