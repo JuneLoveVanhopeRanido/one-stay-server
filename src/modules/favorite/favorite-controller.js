@@ -3,49 +3,45 @@ const Resort = require("../../models/resort-model"); // make sure you have this
 
 /** Add resort to favorites */
 exports.addFavorite = async (req, res) => {
-  const userId = req.user._id; // from authMiddleware
-  const { resortId } = req.body;
-
-  if (!resortId) return res.status(400).json({ message: "Resort ID is required" });
-
   try {
+    const userId = req.user.id;
+    const { resortId } = req.body;
+
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    if (user.favorites.includes(resortId)) {
-      return res.status(200).json({ message: "Already in favorites" });
+    if (!user.favorites.includes(resortId)) {
+      user.favorites.push(resortId);
+      await user.save();
     }
 
-    user.favorites.push(resortId);
-    await user.save();
-
-    res.status(201).json({ message: "Added to favorites" });
+    res.json({ isFavorite: true });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 };
+
 
 /** Remove resort from favorites */
 exports.removeFavorite = async (req, res) => {
-  const userId = req.user._id;
-  const { resortId } = req.body;
-
-  if (!resortId) return res.status(400).json({ message: "Resort ID is required" });
-
   try {
-    const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ message: "User not found" });
+    const userId = req.user.id;
+    const { resortId } = req.body;
 
-    user.favorites = user.favorites.filter(fav => fav.toString() !== resortId);
+    const user = await User.findById(userId);
+
+    user.favorites = user.favorites.filter(
+      (id) => id.toString() !== resortId
+    );
+
     await user.save();
 
-    res.status(200).json({ message: "Removed from favorites" });
+    res.json({ isFavorite: false });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 };
+
 
 /** Check if resort is favorite */
 exports.isFavorite = async (req, res) => {
@@ -71,7 +67,7 @@ exports.getMyFavorites = async (req, res) => {
   try {
     const user = await User.findById(userId).populate({
       path: "favorites",
-      select: "_id resort_name location image_url"
+      select: "_id resort_name location image"
     });
     if (!user) return res.status(404).json({ message: "User not found" });
 
