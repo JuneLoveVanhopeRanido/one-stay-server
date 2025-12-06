@@ -10,6 +10,13 @@ const Reservation = require('../models/reservation-model');
  */
 const isRoomAvailable = async (roomId, startDate, endDate, excludeReservationId = null) => {
   try {
+	    if (!room) {
+      throw new Error("Room not found");
+    }
+
+    if (room.status === "maintenance" || room.status === "booked") {
+      return false; // ❌ Room unavailable
+    }
     // Build query to find conflicting reservations
     const query = {
       room_id: roomId,
