@@ -62,31 +62,22 @@ exports.isFavorite = async (req, res) => {
 
 /** Get all favorites of current user */
 exports.getMyFavorites = async (req, res) => {
-  const userId = req.user._id;
-
   try {
+    const userId = req.user._id;
+
     const user = await User.findById(userId).populate({
       path: "favorites",
-<<<<<<< Updated upstream
       model: "Resort",
-      select: "_id resort_name location image", 
-=======
-      select: "_id resort_name location image"
->>>>>>> Stashed changes
+      select: "_id resort_name location image deleted createdAt",
     });
-    if (!user) return res.status(404).json({ message: "User not found" });
 
-<<<<<<< Updated upstream
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+    if (!user) return res.status(404).json({ message: "User not found" });
 
     const favorites = user.favorites;
 
-    // ⭐ Build enriched favorite resorts
-    const enrichedFavorites = await Promise.all(
+    const enhancedFavorites = await Promise.all(
       favorites.map(async (resort) => {
-        // --- GET FEEDBACKS ---
+        // ⭐ Get all feedback for rating
         const feedbacks = await Feedback.find({
           resort_id: resort._id,
           type: "customer_to_owner",
@@ -94,12 +85,14 @@ exports.getMyFavorites = async (req, res) => {
 
         const averageRating =
           feedbacks.length > 0
-            ? feedbacks.reduce((sum, f) => sum + f.rating, 0) / feedbacks.length
+            ? feedbacks.reduce((sum, f) => sum + f.rating, 0) /
+              feedbacks.length
             : 0;
 
+        // ⭐ Total reviews
         const reviewsCount = feedbacks.length;
 
-        // --- GET LOWEST ROOM PRICE ---
+        // ⭐ Get lowest room price
         const rooms = await Room.find({
           resort_id: resort._id,
           deleted: false,
@@ -109,7 +102,7 @@ exports.getMyFavorites = async (req, res) => {
 
         const lowestPrice = rooms.length > 0 ? rooms[0].price_per_night : 0;
 
-        // --- GET AVAILABLE ROOMS COUNT ---
+        // ⭐ Available rooms
         const availableRoomsCount = await Room.countDocuments({
           resort_id: resort._id,
           status: "available",
@@ -126,23 +119,18 @@ exports.getMyFavorites = async (req, res) => {
       })
     );
 
-    res.status(200).json({
-      success: true,
-      count: enrichedFavorites.length,
-      favorites: enrichedFavorites,
+    // 🔥 Optional: sort favorites the same way featured resorts are sorted
+    enhancedFavorites.sort((a, b) => {
+      if (b.rating !== a.rating) {
+        return b.rating - a.rating;
+      }
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
 
-  } catch (error) {
-    console.error("Get favorites error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Server error while fetching favorites",
-    });
-=======
-    res.status(200).json(user.favorites);
+    res.status(200).json(enhancedFavorites);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
->>>>>>> Stashed changes
+    console.error("Get favorites error:", err);
+    res.status(500).json({ message: "Server error." });
   }
 };
+
