@@ -62,20 +62,21 @@ exports.isFavorite = async (req, res) => {
 
 /** Get all favorites of current user */
 exports.getMyFavorites = async (req, res) => {
+  const userId = req.user._id;
+
   try {
-    if (!req.user || !req.user._id) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    const userId = req.user._id;
-
-    // First fetch user favorites
     const user = await User.findById(userId).populate({
       path: "favorites",
+<<<<<<< Updated upstream
       model: "Resort",
       select: "_id resort_name location image", 
+=======
+      select: "_id resort_name location image"
+>>>>>>> Stashed changes
     });
+    if (!user) return res.status(404).json({ message: "User not found" });
 
+<<<<<<< Updated upstream
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -137,5 +138,11 @@ exports.getMyFavorites = async (req, res) => {
       success: false,
       message: "Server error while fetching favorites",
     });
+=======
+    res.status(200).json(user.favorites);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+>>>>>>> Stashed changes
   }
 };
