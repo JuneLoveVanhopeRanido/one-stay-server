@@ -69,62 +69,12 @@ exports.getMyFavorites = async (req, res) => {
       path: "favorites",
       select: "_id resort_name location image"
     });
-
     if (!user) return res.status(404).json({ message: "User not found" });
+    
 
-    const favorites = user.favorites;
-
-    const enhancedResorts = await Promise.all(
-      favorites.map(async (resort) => {
-
-        const resortData = resort.toObject(); // ✅ FIXED
-
-        // Get average rating
-        const feedbacks = await Feedback.find({
-          resort_id: resort._id,
-          type: "customer_to_owner",
-        });
-
-        const averageRating =
-          feedbacks.length > 0
-            ? feedbacks.reduce((sum, f) => sum + f.rating, 0) /
-              feedbacks.length
-            : 0;
-
-        const reviewsCount = feedbacks.length;
-
-        // Get lowest room price
-        const rooms = await Room.find({
-          resort_id: resort._id,
-          deleted: false,
-        })
-          .sort({ price_per_night: 1 })
-          .limit(1);
-
-        const lowestPrice = rooms.length ? rooms[0].price_per_night : 0;
-
-        // Get available room count
-        const availableRoomsCount = await Room.countDocuments({
-          resort_id: resort._id,
-          status: "available",
-          deleted: false,
-        });
-
-        return {
-          ...resortData,                             // ← safe spread
-          rating: parseFloat(averageRating.toFixed(2)),
-          reviews: reviewsCount,
-          price_per_night: lowestPrice,
-          available_rooms: availableRoomsCount
-        };
-      })
-    );
-
-    res.status(200).json(enhancedResorts);
-
+    res.status(200).json(user.favorites);
   } catch (err) {
-    console.error("Favorites error:", err);
+    console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 };
-
