@@ -1,5 +1,7 @@
 const User = require("../../models/user-model");
 const Resort = require("../../models/resort-model"); // make sure you have this
+const Room = require("../models/room-model");
+const Feedback = require("../models/feedback-model");
 
 /** Add resort to favorites */
 exports.addFavorite = async (req, res) => {
@@ -70,9 +72,51 @@ exports.getMyFavorites = async (req, res) => {
       select: "_id resort_name location image"
     });
     if (!user) return res.status(404).json({ message: "User not found" });
-    
 
-    res.status(200).json(user.favorites);
+    const favorites = user.favorites;
+
+    // Enhance each resort with aggregated data
+    const enhancedResorts = await Promise.all(
+        favorites.map(async (resort) => {
+            // Get average rating from feedbacks
+            const feedbacks = await Feedback.find({ 
+                resort_id: resort._id,
+                type: 'customer_to_owner'
+            });
+            
+            const averageRating = feedbacks.length > 0
+                ? feedbacks.reduce((sum, f) => sum + f.rating, 0) / feedbacks.length
+                : 0;
+            
+            // Get total reviews count
+            const reviewsCount = feedbacks.length;
+            
+            // Get lowest room price
+            const rooms = await Room.find({ 
+                resort_id: resort._id,
+                deleted: false 
+            }).sort({ price_per_night: 1 }).limit(1);
+            
+            const lowestPrice = rooms.length > 0 ? rooms[0].price_per_night : 0;
+            
+            // Get available rooms count
+            const availableRoomsCount = await Room.countDocuments({
+                resort_id: resort._id,
+                status: 'available',
+                deleted: false
+            });
+            
+            return {
+                ...resort,
+                rating: parseFloat(averageRating.toFixed(2)),
+                reviews: reviewsCount,
+                price_per_night: lowestPrice,
+                available_rooms: available  sCount
+            };
+        })
+    );
+
+    res.status(200).json(enhancedResorts);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error" });
