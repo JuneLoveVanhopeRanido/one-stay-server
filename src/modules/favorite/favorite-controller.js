@@ -1,7 +1,7 @@
 const User = require("../../models/user-model");
 const Resort = require("../../models/resort-model"); // make sure you have this
-const Room = require("../models/room-model");
-const Feedback = require("../models/feedback-model");
+const Room = require("../../models/room-model");
+const Feedback = require("../../models/feedback-model");
 
 /** Add resort to favorites */
 exports.addFavorite = async (req, res) => {
@@ -57,7 +57,7 @@ exports.isFavorite = async (req, res) => {
     const isFavorite = user.favorites.includes(resortId);
     res.status(200).json({ isFavorite });
   } catch (err) {
-    console.error(err);
+    console.error(err); 
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -69,7 +69,7 @@ exports.getMyFavorites = async (req, res) => {
   try {
     const user = await User.findById(userId).populate({
       path: "favorites",
-      select: "_id resort_name location description"
+      select: "_id resort_name location image description"
     });
 
     if (!user) return res.status(404).json({ message: "User not found" });
