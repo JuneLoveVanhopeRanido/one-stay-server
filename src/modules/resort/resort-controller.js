@@ -76,18 +76,6 @@ exports.getFeaturedResorts = async (req, res) => {
 		// Enhance each resort with aggregated data
 		const enhancedResorts = await Promise.all(
 			resorts.map(async (resort) => {
-				// Get average rating from feedbacks
-				const feedbacks = await Feedback.find({ 
-					resort_id: resort._id,
-					type: 'customer_to_owner'
-				});
-				
-				const averageRating = feedbacks.length > 0
-					? feedbacks.reduce((sum, f) => sum + f.rating, 0) / feedbacks.length
-					: 0;
-				
-				// Get total reviews count
-				const reviewsCount = feedbacks.length;
 				
 				// Get lowest room price
 				const rooms = await Room.find({ 
@@ -103,11 +91,40 @@ exports.getFeaturedResorts = async (req, res) => {
 					status: 'available',
 					deleted: false
 				});
+
+
+				// Get all rooms for this resort
+						const all_rooms = await Room.find({ 
+							resort_id: resort._id, 
+							deleted: false 
+						});
+				
+						if (all_rooms.length === 0) {
+							return res.status(404).json({ 
+								success: false, 
+								message: 'Resort not found or has no rooms' 
+							});
+						}
+				
+						const roomIds = all_rooms.map(room => room._id);
+				
+						// Get all feedbacks for rooms in this resort (customer_to_owner only for resort rating)
+						const feedbacks = await Feedback.find({
+							room_id: { $in: roomIds },
+							feedback_type: 'customer_to_owner',
+							deleted: false
+						});
+				
+						// Calculate average rating
+						let averageRating = 0;
+						if (feedbacks.length > 0) {
+							const totalRating = feedbacks.reduce((sum, feedback) => sum + feedback.rating, 0);
+							averageRating = (totalRating / feedbacks.length).toFixed(2);
+						}
 				
 				return {
 					...resort,
-					rating: parseFloat(averageRating.toFixed(2)),
-					reviews: reviewsCount,
+					rating: averageRating,
 					price_per_night: lowestPrice,
 					available_rooms: availableRoomsCount
 				};
