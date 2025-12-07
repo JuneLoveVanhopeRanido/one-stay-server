@@ -1,8 +1,5 @@
 const User = require("../../models/user-model");
 const Resort = require("../../models/resort-model"); // make sure you have this
-const User = require("../models/User");
-const Room = require("../models/Room");
-const Feedback = require("../models/Feedback");
 
 /** Add resort to favorites */
 exports.addFavorite = async (req, res) => {
@@ -64,59 +61,76 @@ exports.isFavorite = async (req, res) => {
 };
 
 /** Get all favorites of current user */
-
-
 exports.getMyFavorites = async (req, res) => {
-  const userId = req.user._id;
-
   try {
-    // Get user + resort basic info
+    const userId = req.user._id;
+
     const user = await User.findById(userId).populate({
       path: "favorites",
-      select: "_id resort_name location image createdAt"
-    }).lean();
+      model: "Resort",
+      select: "_id resort_name location image deleted createdAt",
+    });
 
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+    if (!user) return res.status(404).json({ message: "User not found" });
 
-    // Enhance each favorite resort
+    const favorites = user.favorites;
+
     const enhancedFavorites = await Promise.all(
-      user.favorites.map(async (resort) => {
-        // Lowest room price
+      favorites.map(async (resort) => {
+        // ⭐ Get all feedback for rating
+        const feedbacks = await Feedback.find({
+          resort_id: resort._id,
+          type: "customer_to_owner",
+        });
+
+        const averageRating =
+          feedbacks.length > 0
+            ? feedbacks.reduce((sum, f) => sum + f.rating, 0) /
+              feedbacks.length
+            : 0;
+
+        // ⭐ Total reviews
+        const reviewsCount = feedbacks.length;
+
+        // ⭐ Get lowest room price
         const rooms = await Room.find({
           resort_id: resort._id,
-          deleted: false
+          deleted: false,
         })
-        .sort({ price_per_night: 1 })
-        .limit(1);
+          .sort({ price_per_night: 1 })
+          .limit(1);
 
         const lowestPrice = rooms.length > 0 ? rooms[0].price_per_night : 0;
 
-        // Get feedbacks
-        const feedbacks = await Feedback.find({
+        // ⭐ Available rooms
+        const availableRoomsCount = await Room.countDocuments({
           resort_id: resort._id,
-          type: "customer_to_owner"
+          status: "available",
+          deleted: false,
         });
 
-        const avgRating =
-          feedbacks.length > 0
-            ? feedbacks.reduce((sum, f) => sum + f.rating, 0) / feedbacks.length
-            : 0;
-
         return {
-          ...resort,
+          ...resort.toObject(),
+          rating: parseFloat(averageRating.toFixed(2)),
+          reviews: reviewsCount,
           price_per_night: lowestPrice,
-          rating: parseFloat(avgRating.toFixed(2)),
-          reviews: feedbacks.length
+          available_rooms: availableRoomsCount,
         };
       })
     );
 
+    // 🔥 Optional: sort favorites the same way featured resorts are sorted
+    enhancedFavorites.sort((a, b) => {
+      if (b.rating !== a.rating) {
+        return b.rating - a.rating;
+      }
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+
     res.status(200).json(enhancedFavorites);
   } catch (err) {
-    console.error("Error fetching favorites:", err);
-    res.status(500).json({ message: "Server error" });
+    console.error("Get favorites error:", err);
+    res.status(500).json({ message: "Server error." });
   }
 };
 
