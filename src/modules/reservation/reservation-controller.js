@@ -635,7 +635,7 @@ const updateReservationStatus = async (req, res) => {
  */
 const cancelReservation = async (req, res) => {
 	try {
-		const { reservationId,reason } = req.params;
+		const { reservationId } = req.params;
 		const user_id = req.user.id;
 
 		const reservation = await Reservation.findById(reservationId)
@@ -683,7 +683,6 @@ const cancelReservation = async (req, res) => {
 
 		// Update reservation status to cancelled instead of soft delete
 		reservation.status = 'cancelled';
-		reservation.reason = reason
 		await reservation.save();
 
 		// Populate the response with updated reservation data
