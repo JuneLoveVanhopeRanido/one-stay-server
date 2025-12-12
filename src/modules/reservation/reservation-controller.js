@@ -710,6 +710,61 @@ const cancelReservation = async (req, res) => {
 	}
 };
 
+const cancelReservationWithReason = async (req, res) => {
+	try {
+		const { reservationId } = req.params;
+		const user_id = req.user.id;
+		const {reason} = req.body
+
+		console.log("Received reason:", reason);
+
+		const reservation = await Reservation.findById(reservationId)
+			.populate({
+				path: 'room_id',
+				populate: {
+					path: 'resort_id'
+				}
+			});
+
+		if (!reservation || reservation.deleted) {
+			return res.status(404).json({
+				error: 'Reservation not found'
+			});
+		}
+
+
+		// Update reservation status to cancelled instead of soft delete
+		reservation.status = 'cancelled';
+		reservation.reason = reason;
+		await reservation.save();
+
+		// Populate the response with updated reservation data
+		const cancelledReservation = await Reservation.findById(reservationId)
+			.populate('user_id', 'username email')
+			.populate({
+				path: 'room_id',
+				select: 'room_type capacity price_per_night',
+				populate: {
+					path: 'resort_id',
+					select: 'resort_name location'
+				}
+			});
+		console.log("Reason stored in DB:", cancelledReservation.reason);
+
+		res.json({
+			message: 'Reservation cancelled successfully',
+			reservation: cancelledReservation,
+		});
+	} catch (error) {
+		console.error('Error cancelling reservation:', error);
+		res.status(500).json({
+			error: 'Failed to cancel reservation'
+		});
+	}
+};
+
+
+
 /**
  * Get all reservations (for admin purposes)
  * GET /api/reservations
@@ -940,5 +995,6 @@ module.exports = {
 	getAllReservations,
 	getReservationById,
 	completeReservation,
-	autoCompleteReservations
+	autoCompleteReservations,
+	cancelReservationWithReason
 };

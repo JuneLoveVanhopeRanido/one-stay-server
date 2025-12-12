@@ -15,6 +15,7 @@ router.use(authMiddleware);
 router.post('/', validateReservationDates, reservationController.createReservation);
 router.get('/my-reservations', reservationController.getUserReservations);
 router.delete('/:reservationId', validateReservationId, reservationController.cancelReservation);
+router.post('/:reservationId', reservationController.cancelReservationWithReason);
 
 // Owner routes
 router.get('/owner-reservations', reservationController.getOwnerReservations);

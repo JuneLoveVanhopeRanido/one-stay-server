@@ -12,7 +12,8 @@ const reservationSchema = new mongoose.Schema({
 		default: 'pending' 
 	},
 	createdAt: { type: Date, default: Date.now },
-	deleted: { type: Boolean, default: false }
+	deleted: { type: Boolean, default: false },
+	reason: { type: String },
 });
 
 module.exports = mongoose.model('Reservation', reservationSchema);
