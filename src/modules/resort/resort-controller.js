@@ -2,6 +2,7 @@ const Resort = require('../../models/resort-model');
 const Room = require('../../models/room-model');
 const Feedback = require('../../models/feedback-model');
 const { uploadImage, deleteImage, extractPublicId } = require('../../utils/cloudinary');
+const { isRoomAvailable } = require('../../utils/dateAvailability');
 
 // Create a resort
 exports.createResort = async (req, res) => {
@@ -144,6 +145,58 @@ exports.getFeaturedResorts = async (req, res) => {
 		console.error('Get featured resorts error:', err);
 		res.status(500).json({ message: 'Server error.' });
 	}
+};
+
+exports.getAvailableResorts = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.body;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({ message: "startDate and endDate are required" });
+    }
+
+    const resorts = await Resort.find({ deleted: false }).select("_id");
+
+    const availableResortIds = [];
+
+    for (const resort of resorts) {
+      const rooms = await Room.find({
+        resort_id: resort._id,
+        deleted: false,
+      }).select("_id");
+
+      let hasAvailableRoom = false;
+
+	for (const room of rooms) {
+		// skip rooms that are not available
+		// if (room.status !== "available") continue;
+
+		const isAvailable = await isRoomAvailable(
+			room._id,
+			startDate,
+			endDate
+		);
+
+		if (isAvailable) {
+			hasAvailableRoom = true;
+			break; // no need to check more rooms
+		}
+		}
+
+		if (hasAvailableRoom) {
+			availableResortIds.push(resort._id);
+		}
+	}
+
+
+    return res.json({
+      resortIds: availableResortIds,
+    });
+
+  } catch (err) {
+    console.error("Get available resorts error:", err);
+    res.status(500).json({ message: "Server error." });
+  }
 };
 
 // Search resorts by name or location (excluding soft deleted)
