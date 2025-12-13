@@ -8,6 +8,7 @@ const { uploadSingle, handleMulterError } = require('../../middleware/upload');
 router.get('/', resortController.getAllResorts);
 router.get('/search', resortController.searchResorts);
 router.get('/featured', resortController.getFeaturedResorts);
+router.post('/available', resortController.getAvailableResorts);
 router.get('/owner/:owner_id', resortController.getResortByOwnerId);
 router.get('/:id', resortController.getResortById);
 

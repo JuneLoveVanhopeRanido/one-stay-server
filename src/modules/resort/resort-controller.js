@@ -146,6 +146,50 @@ exports.getFeaturedResorts = async (req, res) => {
 	}
 };
 
+exports.getAvailableResorts = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.body;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({ message: "startDate and endDate are required" });
+    }
+
+    const resorts = await Resort.find({ deleted: false }).select("_id");
+
+    const availableResortIds = [];
+
+    for (const resort of resorts) {
+      const rooms = await Room.find({
+        resort_id: resort._id,
+        deleted: false,
+      }).select("_id");
+
+      let hasAvailableRoom = false;
+
+      for (const room of rooms) {
+        const isAvailable = await isRoomAvailable(room._id, startDate, endDate);
+
+        if (isAvailable) {
+          hasAvailableRoom = true;
+          break; // no need to check more rooms
+        }
+      }
+
+      if (hasAvailableRoom) {
+        availableResortIds.push(resort._id);
+      }
+    }
+
+    return res.json({
+      resortIds: availableResortIds,
+    });
+
+  } catch (err) {
+    console.error("Get available resorts error:", err);
+    res.status(500).json({ message: "Server error." });
+  }
+};
+
 // Search resorts by name or location (excluding soft deleted)
 exports.searchResorts = async (req, res) => {
 	try {
